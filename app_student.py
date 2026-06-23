@@ -172,11 +172,11 @@ def rent_equipment():
         # TODO: Log the rental request details
         # Log the incoming rental request before any processing
         logger.info(
-            "Rental request received - Equitpment: '%s', Days enetered: '%s'",
+            "Rental request received - Equipment: '%s', Days entered: '%s'",
             equipment_type, days_str
         )
 
-        # --- VULNERABLE SECTION START ---
+        # --- VULNERABLE SECTION (now protected) ---
         # TODO: Wrap this section in a try/except block to catch crashes (ValueError, etc.)
         try: 
             # [MANUAL-001] Guard against unknown equipment type (KeyError)
@@ -184,44 +184,70 @@ def rent_equipment():
                 raise KeyError(
                     f"Unknown equipment type: '{equipment_type}'"
                 )
-        # Potential Crash: What if equipment_type is not in the dictionary?
-        daily_rate = EQUIPMENT_PRICES[equipment_type]
+            # Potential Crash: What if equipment_type is not in the dictionary?
+            daily_rate = EQUIPMENT_PRICES[equipment_type]
+                
+            # Logic Defect: What if days is -5? It currently calculates a negative cost!
+            # TODO: Add an assertion or check to ensure days > 0
+            # [MANUAL-001] Guard against non-numeric days input (ValueError)
+            days = int(days_str)
+            
+            # [MANUAL-002] Guard against zero or negative days (AssertionError)
+            assert days > 0, (
+                f"Number of days must be positive, got {days}."
+            )
         
-        # Potential Crash: What if days_str is "abc"? (ValueError)
-        days = int(days_str)
+            total_cost = daily_rate * days
         
-        # Logic Defect: What if days is -5? It currently calculates a negative cost!
-        # TODO: Add an assertion or check to ensure days > 0
-        
-        # [MANUAL-001] Guard against non-numeric days input (ValueError)
-        days = int(days_str)
-        
-        # [MANUAL-002] Guard against zero or negative days (AssertionError)
-        assert days > 0, (
-            f"Number of days must be positive, got {days}."
-        )
-        
-        total_cost = daily_rate * days
-        
-        # TODO: Log the successful calculation (INFO)
-        logger.info(
-            "Rental calculated - Equipment: '%s', Days: %d, Total: $%d",
-            equipment_type, days, total_cost
-        )
+            # TODO: Log the successful calculation (INFO)
+            logger.info(
+                "Rental calculated - Equipment: '%s', Days: %d, Total: $%d",
+                equipment_type, days, total_cost
+            )
 
-        rental_result = {
-            "equipment": equipment_type,
-            "days": days,
-            "total_cost": total_cost
-        }
-        flash("Rental calculated successfully!", "success")
+            rental_result = {
+                "equipment": equipment_type,
+                "days": days,
+                "total_cost": total_cost
+            }
+            flash("Rental calculated successfully!", "success")
         
-        # --- VULNERABLE SECTION END ---
         
         # TODO: In your except blocks, log the errors (ERROR) and flash a user-friendly message
+        except KeyError as e:
+            logger.error("Invalid equipment type selected: %s", e)
+            flash(
+                "Invalid equipment type. Please select a valid option.", 
+                "danger"
+            )
+
+        except ValueError:
+            logger.error(
+                "Invalid days value: '%s' could not be converted to integer.",
+                days_str
+            )
+            flash(
+                "Please enter valid whole nuber for the number of days.",
+                "danger"
+            )
+
+        except AssertionError as e:
+            logger.error("Validation error in rental calculation: %s", e)
+            flash(
+                "Number of rental days must be greater than zero.",
+                "danger"
+            )
+            
+        except Exception as e:
+            logger.error("Unexpected error during rental calculation: %s", e)
+            flash(
+                "An unexpected error occurred. Please try again.",
+                "danger"
+            )
+            # --- VULNERABLE SECTION END ---
 
     return render_template('rent.html', rental_result=rental_result)
 
 if __name__ == '__main__':
-    print("Starting application...") # Replace with logger
+    logger.info("Starting application on port 5000") # Replace with logger
     app.run(debug=False, port=5000)
